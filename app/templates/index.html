@@ -2,114 +2,468 @@
 <html>
 <head>
     <title>Personal Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-	#chat-container {
-	    width: 600px;
-	    margin: 0 auto;
-	    border: 1px solid #ccc;
-	    padding: 20px;
-	    border-radius: 10px;
-	}
-	#chat-messages {
-	    height: 400px;
-	    overflow-y: auto;
-	    margin-bottom: 20px;
-	    border-bottom: 1px solid #eee;
-	    padding-bottom: 10px;
-	}
-	.message {
-	    margin: 10px 0;
-	    padding: 8px 12px;
-	    border-radius: 18px;
-	    max-width: 80%;
-	}
-	.user-message {
-	    background-color: #e3f2fd;
-	    margin-left: auto;
-	}
-	.assistant-message {
-	    background-color: #f1f1f1;
-	    margin-right: auto;
-	}
-	#message-input {
-	    width: 80%;
-	    padding: 10px;
-	    border-radius: 20px;
-	    border: 1px solid #ccc;
-	}
-	#send-button {
-	    padding: 10px 20px;
-	    border-radius: 20px;
-	    background-color: #4CAF50;
-	    color: white;
-	    border: none;
-	    cursor: pointer;
-	}
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            min-height: 100vh;
+        }
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 300px;
+            background-color: #fff;
+            border-radius: 0 10px 10px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.08);
+            padding: 20px 0 20px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+            z-index: 100;
+        }
+        #sidebar-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            margin-right: 20px;
+        }
+        .new-chat-btn {
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        .conversation-list-label {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+        #conversations-list {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+        .conversation-item {
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 1em;
+        }
+        .conversation-item:hover {
+            background-color: #f0f0f0;
+        }
+        .active-conversation {
+            background: linear-gradient(90deg, #e3f2fd 0%, #fff 100%);
+            border-left: 4px solid #1976d2;
+        }
+        #chat-container {
+            flex-grow: 1;
+            margin-left: 300px;
+            background-color: #fff;
+            border-radius: 0 10px 10px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        #chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+            display: flex;
+            align-items: flex-end;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            background-clip: padding-box;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+            color: #0d47a1;
+            flex-direction: row-reverse;
+            justify-content: flex-end;
+            border-top-left-radius: 18px;
+            border-top-right-radius: 18px;
+            border-bottom-left-radius: 18px;
+            border-bottom-right-radius: 6px;
+        }
+        .user-message .content-and-time {
+            align-items: flex-end;
+        }
+        .assistant-message {
+            background-color: #f1f1f1;
+            margin-right: auto;
+            color: #333;
+            flex-direction: row;
+            justify-content: flex-start;
+            border-top-left-radius: 18px;
+            border-top-right-radius: 18px;
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 18px;
+        }
+        .assistant-message .content-and-time {
+            align-items: flex-start;
+        }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            margin: 0 10px;
+            object-fit: cover;
+            background: #fff;
+            border: 1px solid #ddd;
+        }
+        .content-and-time {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            flex: 1 1 0%;
+        }
+        .content-and-time > div {
+            word-break: break-word;
+        }
+        .user-message .content-and-time > div {
+            text-align: right;
+        }
+        .assistant-message .content-and-time > div {
+            text-align: left;
+        }
+        .timestamp {
+            font-size: 0.8em;
+            color: #888;
+            margin-left: 8px;
+            margin-top: 2px;
+            align-self: flex-end;
+        }
+        .assistant-message .timestamp {
+            align-self: flex-start;
+        }
+        #message-input {
+            border-radius: 20px 0 0 20px;
+            border: 1px solid #ccc;
+            padding: 12px 20px;
+        }
+        #send-button {
+            border-radius: 0 20px 20px 0;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            transition: background 0.2s;
+        }
+        #upload-button {
+            border-radius: 20px 20px 20px 20px;
+            margin-left: 8px;
+            margin-right: 8px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            transition: background 0.2s;
+        }
+        #send-button:hover, #upload-button:hover {
+            background-color: #388e3c;
+        }
+        @media (max-width: 900px) {
+            #sidebar {
+                position: static;
+                width: 100%;
+                height: auto;
+                border-radius: 10px 10px 0 0;
+                margin-bottom: 16px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            }
+            #chat-container {
+                margin-left: 0;
+                border-radius: 0 0 10px 10px;
+            }
+            #app-container { flex-direction: column; }
+        }
+        .typing-indicator {
+            display: none;
+            margin: 10px 0;
+            padding: 8px 12px;
+            border-radius: 18px;
+            background-color: #f1f1f1;
+            width: 60px;
+            margin-right: auto;
+        }
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #888;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: typing 1s infinite;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+            margin-right: 0;
+        }
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .error-message {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <div id="chat-container">
-	<h1>Personal Assistant</h1>
-	<div id="chat-messages"></div>
-	<div>
-	    <input type="text" id="message-input" placeholder="Type your message...">
-	    <button id="send-button">Send</button>
-	</div>
+    <div id="app-container">
+        <div id="sidebar">
+            <div id="sidebar-header">
+                <button id="new-chat-btn" class="btn btn-primary new-chat-btn">New Chat</button>
+                <span class="conversation-list-label">Conversations</span>
+            </div>
+            <div id="conversations-list"></div>
+        </div>
+        <div id="chat-container">
+            <h2 class="mb-4">Personal Assistant</h2>
+            <div id="chat-messages" class="mb-3"></div>
+            <div id="typing-indicator" style="display:none; color:#888; margin-bottom:10px;">Assistant is typing<span class="blink">...</span></div>
+            <div class="input-group">
+                <input type="text" id="message-input" class="form-control" placeholder="Type your message...">
+                <button id="send-button" class="btn btn-success">Send</button>
+                <input type="file" id="file-upload" style="display:none">
+                <button id="upload-button" class="btn btn-secondary">Upload Document</button>
+            </div>
+        </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
-	const userId = "user_" + Math.random().toString(36).substring(2, 9);
-	let conversationId = null;
-	
-	document.getElementById('send-button').addEventListener('click', sendMessage);
-	document.getElementById('message-input').addEventListener('keypress', function(e) {
-	    if (e.key === 'Enter') sendMessage();
-	});
-	
-	function sendMessage() {
-	    const input = document.getElementById('message-input');
-	    const message = input.value.trim();
-	    if (!message) return;
-	    
-	    addMessage(message, true);
-	    input.value = '';
-	    
-	    fetch('/api/chat', {
-		method: 'POST',
-		headers: {
-		    'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-		    user_id: userId,
-		    message: message,
-		    conversation_id: conversationId
-		})
-	    })
-	    .then(response => response.json())
-	    .then(data => {
-		if (data.error) {
-		    addMessage("Error: " + data.error, false);
-		} else {
-		    addMessage(data.response, false);
-		    if (!conversationId) {
-			conversationId = data.conversation_id;
-		    }
-		}
-	    })
-	    .catch(error => {
-		addMessage("Error communicating with the assistant.", false);
-		console.error('Error:', error);
-	    });
-	}
-	
-	function addMessage(text, isUser) {
-	    const messagesDiv = document.getElementById('chat-messages');
-	    const messageDiv = document.createElement('div');
-	    messageDiv.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
-	    messageDiv.textContent = text;
-	    messagesDiv.appendChild(messageDiv);
-	    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-	}
+        // Generate a unique user ID or retrieve from localStorage
+        const userId = localStorage.getItem('pa_user_id') || "user_" + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('pa_user_id', userId);
+        
+        let currentConversationId = null;
+        
+        // DOM elements
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const messagesContainer = document.getElementById('chat-messages');
+        const conversationsList = document.getElementById('conversations-list');
+        const newChatButton = document.getElementById('new-chat-btn');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const uploadButton = document.getElementById('upload-button');
+        const fileUpload = document.getElementById('file-upload');
+        
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+        newChatButton.addEventListener('click', startNewChat);
+        uploadButton.addEventListener('click', () => fileUpload.click());
+        fileUpload.addEventListener('change', async function() {
+            if (fileUpload.files.length === 0) return;
+            const file = fileUpload.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            addMessage('Uploading document...', false);
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    addMessage('Document parsed and summarized:', false);
+                    addMessage(data.parsed_result, false);
+                } else {
+                    addMessage(data.error || 'Upload failed.', false);
+                }
+            } catch (err) {
+                addMessage('Upload error.', false);
+            }
+            fileUpload.value = '';
+        });
+        
+        // Initialize
+        loadConversations();
+        
+        // If no conversation is active, show a welcome message
+        if (!currentConversationId) {
+            addMessage("Hello! I'm your personal assistant. How can I help you today?", false);
+        }
+        
+        function startNewChat() {
+            currentConversationId = null;
+            messagesContainer.innerHTML = '';
+            updateActiveConversation();
+            addMessage("Hello! I'm your personal assistant. How can I help you today?", false);
+        }
+        
+        function loadConversations() {
+            fetch(`/api/conversations/${userId}`)
+                .then(response => response.json())
+                .then(conversations => {
+                    conversationsList.innerHTML = '';
+                    conversations.forEach(conv => {
+                        const convDiv = document.createElement('div');
+                        convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active-conversation' : ''}`;
+                        convDiv.dataset.conversationId = conv.id;
+                        convDiv.textContent = conv.title;
+                        convDiv.addEventListener('click', () => loadConversation(conv.id));
+                        conversationsList.appendChild(convDiv);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading conversations:', error);
+                });
+        }
+        
+        function loadConversation(conversationId) {
+            currentConversationId = conversationId;
+            updateActiveConversation();
+            
+            fetch(`/api/conversation/${conversationId}`)
+                .then(response => response.json())
+                .then(data => {
+                    messagesContainer.innerHTML = '';
+                    data.messages.forEach(msg => {
+                        addMessage(msg.content, msg.is_user, false, msg.timestamp);
+                    });
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                })
+                .catch(error => {
+                    console.error('Error loading conversation:', error);
+                    addMessage("Failed to load conversation. Please try again.", false);
+                });
+        }
+        
+        function updateActiveConversation() {
+            const items = document.querySelectorAll('.conversation-item');
+            items.forEach(item => {
+                if (item.dataset.conversationId === String(currentConversationId)) {
+                    item.classList.add('active-conversation');
+                } else {
+                    item.classList.remove('active-conversation');
+                }
+            });
+        }
+        
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            addMessage(message, true);
+            messageInput.value = '';
+            messageInput.focus();
+            
+            // Show typing indicator
+            showTypingIndicator(true);
+            
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    message: message,
+                    conversation_id: currentConversationId
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide typing indicator
+                showTypingIndicator(false);
+                
+                if (data.error) {
+                    addMessage(data.error, false);
+                } else {
+                    addMessage(data.response, false);
+                    if (!currentConversationId) {
+                        currentConversationId = data.conversation_id;
+                        loadConversations();
+                    }
+                }
+            })
+            .catch(error => {
+                // Hide typing indicator
+                showTypingIndicator(false);
+                
+                console.error('Error:', error);
+                addMessage("Error communicating with the assistant. Please try again.", false);
+            });
+        }
+        
+        function addMessage(text, isUser, scroll = true, timestamp = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
+
+            // Avatar
+            const avatar = document.createElement('img');
+            avatar.className = 'avatar';
+            avatar.src = isUser
+                ? 'https://api.dicebear.com/7.x/personas/svg?seed=user'
+                : 'https://api.dicebear.com/7.x/bottts/svg?seed=assistant';
+            messageDiv.appendChild(avatar);
+
+            // Content + Timestamp wrapper
+            const contentAndTime = document.createElement('div');
+            contentAndTime.className = 'content-and-time';
+
+            // Message content
+            const contentDiv = document.createElement('div');
+            contentDiv.style.flex = '1';
+            if (isUser) {
+                contentDiv.textContent = text;
+            } else {
+                contentDiv.innerHTML = marked.parse(text);
+            }
+            contentAndTime.appendChild(contentDiv);
+
+            // Timestamp
+            const ts = document.createElement('span');
+            ts.className = 'timestamp';
+            ts.textContent = timestamp || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            contentAndTime.appendChild(ts);
+
+            messageDiv.appendChild(contentAndTime);
+
+            messagesContainer.appendChild(messageDiv);
+            if (scroll) {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+
+        function showTypingIndicator(show=true) {
+            typingIndicator.style.display = show ? '' : 'none';
+        }
     </script>
 </body>
 </html>

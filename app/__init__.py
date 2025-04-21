@@ -1,4 +1,6 @@
 from flask import Flask
+from dotenv import load_dotenv
+load_dotenv()
 from config import Config
 from app.utils.database import db
 from flask_migrate import Migrate
