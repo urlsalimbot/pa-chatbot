@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Personal Assistant</title>
+    <title>Groggo - The Personal Assistant</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -58,6 +58,9 @@
             cursor: pointer;
             transition: background 0.2s;
             font-size: 1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .conversation-item:hover {
             background-color: #f0f0f0;
@@ -65,6 +68,14 @@
         .active-conversation {
             background: linear-gradient(90deg, #e3f2fd 0%, #fff 100%);
             border-left: 4px solid #1976d2;
+        }
+        .delete-conv-btn {
+            background: none;
+            border: none;
+            color: #d32f2f;
+            font-size: 1.2em;
+            cursor: pointer;
+            margin-left: 8px;
         }
         #chat-container {
             flex-grow: 1;
@@ -79,8 +90,9 @@
         #chat-messages {
             flex-grow: 1;
             overflow-y: auto;
-            margin-bottom: 20px;
+            margin-bottom: 0;
             padding: 10px;
+            height: 70vh;
         }
         .message {
             margin: 10px 0;
@@ -155,46 +167,72 @@
         .assistant-message .timestamp {
             align-self: flex-start;
         }
-        #message-input {
-            border-radius: 20px 0 0 20px;
-            border: 1px solid #ccc;
-            padding: 12px 20px;
+        .chat-form-modern {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f6f8fa;
+            border-radius: 22px;
+            padding: 10px 16px;
+            box-shadow: 0 2px 8px rgba(80,120,200,0.06);
+            margin-top: 10px;
         }
-        #send-button {
-            border-radius: 0 20px 20px 0;
-            background-color: #4CAF50;
-            color: white;
+        .chat-form-modern input[type="text"] {
+            flex: 1;
             border: none;
-            padding: 12px 20px;
-            transition: background 0.2s;
+            outline: none;
+            background: transparent;
+            font-size: 1.1em;
+            padding: 10px 8px;
+            border-radius: 16px;
+            color: #222;
         }
-        #upload-button {
-            border-radius: 20px 20px 20px 20px;
+        .chat-form-modern input[type="text"]::placeholder {
+            color: #bbb;
+        }
+        .chat-form-modern input[type="file"] {
+            display: none;
+        }
+        .custom-file-label {
+            display: flex;
+            align-items: center;
+            background: #e3f2fd;
+            color: #1976d2;
+            border-radius: 16px;
+            padding: 8px 14px;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 1px solid #b3d3ea;
+        }
+        .custom-file-label:hover {
+            background: #bbdefb;
+        }
+        .custom-file-label .file-icon {
+            margin-right: 7px;
+            font-size: 1.2em;
+        }
+        .chat-form-modern button {
+            background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+            color: #fff;
+            border: none;
+            border-radius: 16px;
+            padding: 10px 22px;
+            font-size: 1em;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(60,200,160,0.07);
+            transition: background 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .chat-form-modern button:hover {
+            background: linear-gradient(90deg, #38f9d7 0%, #43e97b 100%);
+            box-shadow: 0 4px 16px rgba(60,200,160,0.12);
+        }
+        .file-selected {
+            color: #388e3c;
+            font-weight: 500;
             margin-left: 8px;
-            margin-right: 8px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            transition: background 0.2s;
-        }
-        #send-button:hover, #upload-button:hover {
-            background-color: #388e3c;
-        }
-        @media (max-width: 900px) {
-            #sidebar {
-                position: static;
-                width: 100%;
-                height: auto;
-                border-radius: 10px 10px 0 0;
-                margin-bottom: 16px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-            }
-            #chat-container {
-                margin-left: 0;
-                border-radius: 0 0 10px 10px;
-            }
-            #app-container { flex-direction: column; }
+            font-size: 0.97em;
         }
         .typing-indicator {
             display: none;
@@ -233,6 +271,21 @@
             margin: 10px 0;
             text-align: center;
         }
+        @media (max-width: 900px) {
+            #sidebar {
+                position: static;
+                width: 100%;
+                height: auto;
+                border-radius: 10px 10px 0 0;
+                margin-bottom: 16px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            }
+            #chat-container {
+                margin-left: 0;
+                border-radius: 0 0 10px 10px;
+            }
+            #app-container { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
@@ -245,15 +298,18 @@
             <div id="conversations-list"></div>
         </div>
         <div id="chat-container">
-            <h2 class="mb-4">Personal Assistant</h2>
+            <h2 class="mb-4">Groggo - The Personal Assistant</h2>
             <div id="chat-messages" class="mb-3"></div>
             <div id="typing-indicator" style="display:none; color:#888; margin-bottom:10px;">Assistant is typing<span class="blink">...</span></div>
-            <div class="input-group">
-                <input type="text" id="message-input" class="form-control" placeholder="Type your message...">
-                <button id="send-button" class="btn btn-success">Send</button>
-                <input type="file" id="file-upload" style="display:none">
-                <button id="upload-button" class="btn btn-secondary">Upload Document</button>
-            </div>
+            <form id="chat-form" class="chat-form-modern" enctype="multipart/form-data">
+                <input id="message-input" name="message" type="text" placeholder="Type your message..." autocomplete="off" required />
+                <label for="file-input" class="custom-file-label">
+                    <span class="file-icon">📎</span>
+                    <span id="file-label-text">Attach</span>
+                </label>
+                <input id="file-input" name="file" type="file" accept=".pdf,.txt,.docx" />
+                <button id="send-button" type="submit">Send</button>
+            </form>
         </div>
     </div>
 
@@ -272,39 +328,37 @@
         const conversationsList = document.getElementById('conversations-list');
         const newChatButton = document.getElementById('new-chat-btn');
         const typingIndicator = document.getElementById('typing-indicator');
-        const uploadButton = document.getElementById('upload-button');
-        const fileUpload = document.getElementById('file-upload');
+        const fileInput = document.getElementById('file-input');
+        const chatForm = document.getElementById('chat-form');
+        const fileLabelText = document.getElementById('file-label-text');
         
         // Event listeners
-        sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-        newChatButton.addEventListener('click', startNewChat);
-        uploadButton.addEventListener('click', () => fileUpload.click());
-        fileUpload.addEventListener('change', async function() {
-            if (fileUpload.files.length === 0) return;
-            const file = fileUpload.files[0];
+        chatForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) return;
+            const file = fileInput.files[0];
             const formData = new FormData();
-            formData.append('file', file);
-            addMessage('Uploading document...', false);
-            try {
-                const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                if (data.success) {
-                    addMessage('Document parsed and summarized:', false);
-                    addMessage(data.parsed_result, false);
-                } else {
-                    addMessage(data.error || 'Upload failed.', false);
-                }
-            } catch (err) {
-                addMessage('Upload error.', false);
+            formData.append('user_id', userId); 
+            formData.append('message', message);
+            if (currentConversationId) formData.append('conversation_id', currentConversationId);
+            if (file) formData.append('file', file);
+            addMessage(message + (file ? ' (attaching document...)' : ''), true);
+            messageInput.value = '';
+            // Reset file input and label
+            fileInput.value = '';
+            fileLabelText.textContent = 'Attach';
+            fileLabelText.classList.remove('file-selected');
+            const res = await fetch('/api/chat', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+                addMessage(data.assistant_response, false);
+                if (data.conversation_id) currentConversationId = data.conversation_id;
+            } else {
+                addMessage('[Error sending message: ' + (data.error || 'Unknown error') + ']', false);
             }
-            fileUpload.value = '';
-        });
+        };
+        newChatButton.addEventListener('click', startNewChat);
         
         // Initialize
         loadConversations();
@@ -326,16 +380,52 @@
                 .then(response => response.json())
                 .then(conversations => {
                     conversationsList.innerHTML = '';
+                    if (!Array.isArray(conversations)) {
+                        // API error or unexpected response
+                        addMessage('Failed to load conversations.', false);
+                        return;
+                    }
+                    if (conversations.length === 0) {
+                        const noConv = document.createElement('div');
+                        noConv.className = 'conversation-item';
+                        noConv.textContent = 'No conversations yet.';
+                        conversationsList.appendChild(noConv);
+                        return;
+                    }
                     conversations.forEach(conv => {
                         const convDiv = document.createElement('div');
                         convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active-conversation' : ''}`;
                         convDiv.dataset.conversationId = conv.id;
                         convDiv.textContent = conv.title;
                         convDiv.addEventListener('click', () => loadConversation(conv.id));
+
+                        // Add delete button
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'delete-conv-btn';
+                        delBtn.innerHTML = '&times;';
+                        delBtn.title = 'Delete conversation';
+                        delBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            if (confirm('Delete this conversation and all its messages?')) {
+                                fetch(`/api/conversation/${conv.id}`, { method: 'DELETE' })
+                                    .then(res => res.json())
+                                    .then(res => {
+                                        if (res.success) {
+                                            if (currentConversationId == conv.id) {
+                                                currentConversationId = null;
+                                                messagesContainer.innerHTML = '';
+                                            }
+                                            loadConversations();
+                                        }
+                                    });
+                            }
+                        };
+                        convDiv.appendChild(delBtn);
                         conversationsList.appendChild(convDiv);
                     });
                 })
                 .catch(error => {
+                    addMessage('Failed to load conversations.', false);
                     console.error('Error loading conversations:', error);
                 });
         }
@@ -349,7 +439,7 @@
                 .then(data => {
                     messagesContainer.innerHTML = '';
                     data.messages.forEach(msg => {
-                        addMessage(msg.content, msg.is_user, false, msg.timestamp);
+                        addMessage(msg.content, msg.is_user, false, msg.timestamp, msg.id);
                     });
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 })
@@ -370,58 +460,7 @@
             });
         }
         
-        function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message) return;
-            
-            addMessage(message, true);
-            messageInput.value = '';
-            messageInput.focus();
-            
-            // Show typing indicator
-            showTypingIndicator(true);
-            
-            fetch('/api/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    user_id: userId,
-                    message: message,
-                    conversation_id: currentConversationId
-                })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Hide typing indicator
-                showTypingIndicator(false);
-                
-                if (data.error) {
-                    addMessage(data.error, false);
-                } else {
-                    addMessage(data.response, false);
-                    if (!currentConversationId) {
-                        currentConversationId = data.conversation_id;
-                        loadConversations();
-                    }
-                }
-            })
-            .catch(error => {
-                // Hide typing indicator
-                showTypingIndicator(false);
-                
-                console.error('Error:', error);
-                addMessage("Error communicating with the assistant. Please try again.", false);
-            });
-        }
-        
-        function addMessage(text, isUser, scroll = true, timestamp = null) {
+        function addMessage(text, isUser, scroll = true, timestamp = null, messageId = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
 
@@ -430,7 +469,7 @@
             avatar.className = 'avatar';
             avatar.src = isUser
                 ? 'https://api.dicebear.com/7.x/personas/svg?seed=user'
-                : 'https://api.dicebear.com/7.x/bottts/svg?seed=assistant';
+                : 'data:image/svg+xml;utf8,<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="24" cy="36" rx="14" ry="8" fill="%23a3d977"/><ellipse cx="24" cy="22" rx="14" ry="14" fill="%23a3d977"/><ellipse cx="34" cy="16" rx="4" ry="4" fill="%2385bb65"/><ellipse cx="14" cy="16" rx="4" ry="4" fill="%2385bb65"/><ellipse cx="30" cy="24" rx="2" ry="2" fill="%23000"/><ellipse cx="18" cy="24" rx="2" ry="2" fill="%23000"/><path d="M20 30 Q24 34 28 30" stroke="%23000" stroke-width="2" fill="none"/><ellipse cx="24" cy="40" rx="3" ry="1.5" fill="%2385bb65"/></svg>';
             messageDiv.appendChild(avatar);
 
             // Content + Timestamp wrapper
@@ -455,15 +494,43 @@
 
             messageDiv.appendChild(contentAndTime);
 
-            messagesContainer.appendChild(messageDiv);
-            if (scroll) {
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            // Message delete button
+            if (messageId) {
+                const delMsgBtn = document.createElement('button');
+                delMsgBtn.className = 'delete-conv-btn';
+                delMsgBtn.innerHTML = '&times;';
+                delMsgBtn.title = 'Delete message';
+                delMsgBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm('Delete this message?')) {
+                        fetch(`/api/message/${messageId}`, { method: 'DELETE' })
+                            .then(res => res.json())
+                            .then(res => {
+                                if (res.success) {
+                                    messageDiv.remove();
+                                }
+                            });
+                    }
+                };
+                contentAndTime.appendChild(delMsgBtn);
             }
-        }
 
-        function showTypingIndicator(show=true) {
-            typingIndicator.style.display = show ? '' : 'none';
+            messagesContainer.appendChild(messageDiv);
+            // Always scroll to bottom after adding a message
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 50);
         }
+        
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                fileLabelText.textContent = fileInput.files[0].name;
+                fileLabelText.classList.add('file-selected');
+            } else {
+                fileLabelText.textContent = 'Attach';
+                fileLabelText.classList.remove('file-selected');
+            }
+        });
     </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
-# Personal Assistant Chatbot
+# Groggo
 
-A web-based personal assistant chatbot built with Flask, PostgreSQL, and a third-party LLM API.
+Groggo is your personal assistant chatbot with memory. It remembers your preferences and facts, and helps you with tasks and questions in a friendly, dinosaur-themed interface.
 
 ## Features
 
