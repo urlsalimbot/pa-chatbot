@@ -193,6 +193,22 @@ def get_conversations(user_name):
         current_app.logger.error(f"Error retrieving conversations: {str(e)}")
         return jsonify({"error": "Failed to retrieve conversations"}), 500
 
+@bp.route('/api/conversations/all', methods=['GET'])
+def get_all_conversations():
+    try:
+        conversations = Conversation.query.order_by(Conversation.created_at.desc()).all()
+        return jsonify([
+            {
+                "id": conv.id,
+                "title": conv.title,
+                "created_at": conv.created_at.isoformat(),
+                "user_id": conv.user_id
+            } for conv in conversations
+        ])
+    except Exception as e:
+        current_app.logger.error(f"Error retrieving all conversations: {str(e)}")
+        return jsonify({"error": "Failed to retrieve conversations"}), 500
+
 @bp.route('/api/conversation/<conversation_id>', methods=['GET'])
 def get_conversation_messages(conversation_id):
     conversation = Conversation.query.get(conversation_id)

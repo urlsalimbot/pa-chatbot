@@ -354,6 +354,10 @@
             if (data.success) {
                 addMessage(data.assistant_response, false);
                 if (data.conversation_id) currentConversationId = data.conversation_id;
+                // Auto-update conversation list if a new conversation was created
+                if (data.conversation_id && !conversationsList.querySelector(`[data-conversation-id='${data.conversation_id}']`)) {
+                    loadConversations();
+                }
             } else {
                 addMessage('[Error sending message: ' + (data.error || 'Unknown error') + ']', false);
             }
