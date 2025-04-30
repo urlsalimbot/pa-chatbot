@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, render_template, current_app, sen
 from app.models import User, Conversation, Message
 from app.utils.llm_integration import get_llm_response, extract_text_from_file, summarize_text
 from app.utils.database import db
-from app.utils.memory_utils import save_memory, get_memory, extract_fact_from_message, detect_schedule_block
+from app.utils.memory_utils import save_memory, get_memory, extract_fact_from_message, detect_schedule_block, consolidate_memory_entries, parse_schedule_metadata
 from datetime import datetime, timedelta
 import traceback
 import os
@@ -39,6 +39,7 @@ def chat():
         if not user_name or not message:
             return jsonify({"error": "No user or message provided"}), 400
         # Handle file if provided
+
         doc_summary = None
         if file and file.filename:
             filename = secure_filename(file.filename)
@@ -46,6 +47,7 @@ def chat():
             file.save(file_path)
             text = extract_text_from_file(file_path)
             doc_summary = summarize_text(text)
+
         # Compose message to assistant
         full_message = message
         if doc_summary:
@@ -56,6 +58,7 @@ def chat():
             user = User(username=user_name)
             db.session.add(user)
             db.session.commit()
+
         # Find or create conversation
         if conversation_id:
             conversation = Conversation.query.get(conversation_id)
@@ -68,10 +71,12 @@ def chat():
             db.session.commit()
             conversation_id = conversation.id
         conversation_id = conversation.id
+
         # Save user message
         user_msg = Message(conversation_id=conversation_id, content=full_message, is_user=True)
         db.session.add(user_msg)
         db.session.commit()
+
         # --- Memory extraction and save (from both message and document) ---
         # Robustly extract and save schedule from document summary as a block, even if not labeled with 'schedule:'
         if doc_summary:
@@ -86,6 +91,7 @@ def chat():
             if schedule_block:
                 save_memory(user.id, 'schedule', schedule_block, category='schedule')
                 current_app.logger.info(f"Saved SCHEDULE block from document for user {user.username}")
+
         # Existing single-line fact extraction
         key, value = extract_fact_from_message(message)
         if key and value:
@@ -96,6 +102,8 @@ def chat():
             if key_doc and value_doc:
                 save_memory(user.id, key_doc, value_doc, category='fact')
                 current_app.logger.info(f"Saved memory from document for user {user.username}: {key_doc} = {value_doc}")
+
+
         # Chatbot response
         llm_messages = []
         user_memories = get_memory(user.id)
@@ -119,25 +127,33 @@ def chat():
         if key_resp and value_resp:
             # If it's a schedule, try to parse day and schedule_id
             if key_resp == 'schedule':
-                # Try to extract day from the message or current date
-                day = None
-                schedule_id = None
+                # Try to extract day and date from the schedule text
+                schedule_id, day_date, _ = parse_schedule_metadata(value_resp)
+                
+                # Default values if not found in the text
                 now = datetime.now()
                 
-                # Check for "today", "tomorrow", etc.
-                if "today" in value_resp.lower():
-                    day = now.strftime("%Y-%m-%d")
-                    schedule_id = "today"
-                elif "tomorrow" in value_resp.lower():
-                    tomorrow = now + timedelta(days=1)
-                    day = tomorrow.strftime("%Y-%m-%d")
-                    schedule_id = "tomorrow"
-                elif "yesterday" in value_resp.lower():
-                    yesterday = now - timedelta(days=1)
-                    day = yesterday.strftime("%Y-%m-%d")
-                    schedule_id = "yesterday"
+                # If we couldn't extract a specific day/date, check for common time references
+                if not day_date:
+                    if "today" in value_resp.lower():
+                        today_date = now.strftime("%B %d, %Y")
+                        day_of_week = now.strftime("%A")
+                        day_date = f"{day_of_week}, {today_date}"
+                        schedule_id = schedule_id or "today"
+                    elif "tomorrow" in value_resp.lower():
+                        tomorrow = now + timedelta(days=1)
+                        tomorrow_date = tomorrow.strftime("%B %d, %Y")
+                        day_of_week = tomorrow.strftime("%A")
+                        day_date = f"{day_of_week}, {tomorrow_date}"
+                        schedule_id = schedule_id or "tomorrow"
+                    elif "yesterday" in value_resp.lower():
+                        yesterday = now - timedelta(days=1)
+                        yesterday_date = yesterday.strftime("%B %d, %Y")
+                        day_of_week = yesterday.strftime("%A")
+                        day_date = f"{day_of_week}, {yesterday_date}"
+                        schedule_id = schedule_id or "yesterday"
                 
-                save_memory(user.id, key_resp, value_resp, category='schedule', day=day, schedule_id=schedule_id)
+                save_memory(user.id, key_resp, value_resp, category='schedule', day=day_date, schedule_id=schedule_id)
             else:
                 save_memory(user.id, key_resp, value_resp, category='fact')
             current_app.logger.info(f"Saved memory from assistant response for user {user.username}: {key_resp} = {value_resp}")
@@ -145,30 +161,38 @@ def chat():
         # Additionally, robustly detect and save schedule blocks from Gemini response (even if not labeled)
         schedule_block = detect_schedule_block(assistant_response)
         if schedule_block and (not key_resp or key_resp != 'schedule' or schedule_block != value_resp):
-            # Try to extract day and schedule_id from context
-            day = None
-            schedule_id = None
-            now = datetime.now()
+            # Try to extract day and schedule_id from the schedule block
+            schedule_id, day_date, _ = parse_schedule_metadata(schedule_block)
             
-            # Look for day indicators in the conversation
-            for msg in chat_history[-5:]:
-                if msg.is_user and msg.content:
-                    if "today" in msg.content.lower():
-                        day = now.strftime("%Y-%m-%d")
-                        schedule_id = "today"
-                        break
-                    elif "tomorrow" in msg.content.lower():
-                        tomorrow = now + timedelta(days=1)
-                        day = tomorrow.strftime("%Y-%m-%d")
-                        schedule_id = "tomorrow"
-                        break
-                    elif "yesterday" in msg.content.lower():
-                        yesterday = now - timedelta(days=1)
-                        day = yesterday.strftime("%Y-%m-%d")
-                        schedule_id = "yesterday"
-                        break
+            # If we couldn't extract a specific day/date, look in the conversation history
+            if not day_date:
+                now = datetime.now()
+                
+                # Look for day indicators in the conversation
+                for msg in chat_history[-5:]:
+                    if msg.is_user and msg.content:
+                        if "today" in msg.content.lower():
+                            today_date = now.strftime("%B %d, %Y")
+                            day_of_week = now.strftime("%A")
+                            day_date = f"{day_of_week}, {today_date}"
+                            schedule_id = schedule_id or "today"
+                            break
+                        elif "tomorrow" in msg.content.lower():
+                            tomorrow = now + timedelta(days=1)
+                            tomorrow_date = tomorrow.strftime("%B %d, %Y")
+                            day_of_week = tomorrow.strftime("%A")
+                            day_date = f"{day_of_week}, {tomorrow_date}"
+                            schedule_id = schedule_id or "tomorrow"
+                            break
+                        elif "yesterday" in msg.content.lower():
+                            yesterday = now - timedelta(days=1)
+                            yesterday_date = yesterday.strftime("%B %d, %Y")
+                            day_of_week = yesterday.strftime("%A")
+                            day_date = f"{day_of_week}, {yesterday_date}"
+                            schedule_id = schedule_id or "yesterday"
+                            break
             
-            save_memory(user.id, 'schedule', schedule_block, category='schedule', day=day, schedule_id=schedule_id)
+            save_memory(user.id, 'schedule', schedule_block, category='schedule', day=day_date, schedule_id=schedule_id)
             current_app.logger.info(f"Saved SCHEDULE block from Gemini response for user {user.username}")
         assistant_msg = Message(conversation_id=conversation_id, content=assistant_response, is_user=False)
         db.session.add(assistant_msg)
@@ -191,7 +215,43 @@ def get_conversations(user_name):
         } for conv in conversations])
     except Exception as e:
         current_app.logger.error(f"Error retrieving conversations: {str(e)}")
-        return jsonify({"error": "Failed to retrieve conversations"}), 500
+        return jsonify({"error": str(e)}), 500
+
+@bp.route('/api/memory/consolidate', methods=['POST'])
+def consolidate_memories():
+    """
+    Endpoint to manually trigger memory consolidation.
+    Can be called with a specific user_id or for all users.
+    Returns statistics about the consolidation process.
+    """
+    try:
+        data = request.json or {}
+        user_id = data.get('user_id')  # Optional
+        
+        # If user_id is provided, validate it exists
+        if user_id:
+            user = User.query.get(user_id)
+            if not user:
+                return jsonify({"error": f"User with ID {user_id} not found"}), 404
+        
+        # Run the consolidation
+        consolidated, deleted = consolidate_memory_entries(user_id)
+        
+        # Log the action
+        if user_id:
+            current_app.logger.info(f"Manual memory consolidation for user {user_id}: {consolidated} groups consolidated, {deleted} entries deleted")
+        else:
+            current_app.logger.info(f"Manual memory consolidation for all users: {consolidated} groups consolidated, {deleted} entries deleted")
+        
+        return jsonify({
+            "success": True,
+            "consolidated_groups": consolidated,
+            "deleted_entries": deleted,
+            "user_id": user_id or "all users"
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error during memory consolidation: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @bp.route('/api/conversations/all', methods=['GET'])
 def get_all_conversations():

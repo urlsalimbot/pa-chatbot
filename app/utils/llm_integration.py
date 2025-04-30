@@ -2,17 +2,135 @@ import requests
 import os
 from flask import current_app
 import mimetypes
-from datetime import datetime
-from app.utils.memory_utils import get_memory
+from datetime import datetime, timedelta
+import re
+from app.utils.memory_utils import get_memory, consolidate_memory_entries
 from app.models import Memory, Conversation, Message, User
 
+def parse_and_sort_schedule_entries(schedule_text):
+    """
+    Parse a schedule text and sort entries chronologically by time.
+    Returns a sorted list of (time_slot, event) tuples.
+    """
+    entries = []
+    lines = schedule_text.strip().split('\n')
+    
+    for line in lines:
+        # Skip empty lines or lines without time information
+        if not line.strip() or ':' not in line:
+            continue
+            
+        # Try to extract time and event from lines like "- 9:00 AM: Meeting" or "9:00 AM: Meeting"
+        # Also handle formats like "- From 9:00 AM to 10:00 AM: Meeting"
+        time_match = re.search(r'(?:^|\s)(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)?)', line)
+        
+        if time_match:
+            time_str = time_match.group(1).strip()
+            # Find the position after the time string
+            pos = line.find(time_str) + len(time_str)
+            
+            # Check if there's a colon after the time
+            remaining = line[pos:].strip()
+            if remaining.startswith(':'):
+                event = remaining[1:].strip()
+            else:
+                # If no colon, just take the rest of the line
+                event = remaining
+                
+            # For sorting, convert time to 24-hour format
+            sort_time = time_str.lower()
+            if 'am' in sort_time or 'pm' in sort_time:
+                # Handle AM/PM format
+                hour = int(re.search(r'(\d{1,2})', sort_time).group(1))
+                if 'pm' in sort_time and hour < 12:
+                    hour += 12
+                if 'am' in sort_time and hour == 12:
+                    hour = 0
+                    
+                # Extract minutes if present
+                minutes = 0
+                min_match = re.search(r':(\d{2})', sort_time)
+                if min_match:
+                    minutes = int(min_match.group(1))
+                    
+                # Use hour and minutes for sorting
+                sort_key = hour * 60 + minutes
+            else:
+                # Handle 24-hour format or just hour
+                hour = int(re.search(r'(\d{1,2})', sort_time).group(1))
+                minutes = 0
+                min_match = re.search(r':(\d{2})', sort_time)
+                if min_match:
+                    minutes = int(min_match.group(1))
+                sort_key = hour * 60 + minutes
+                
+            entries.append((sort_key, time_str, event))
+        else:
+            # Handle lines without clear time format but with event information
+            # These will be placed at the end
+            entries.append((float('inf'), "", line.strip()))
+    
+    # Sort entries by the numeric sort_key
+    entries.sort(key=lambda x: x[0])
+    
+    # Return only the time string and event
+    return [(entry[1], entry[2]) for entry in entries]
+
+def format_schedule_chronologically(schedule_text):
+    """
+    Takes a schedule text and returns a chronologically sorted version.
+    """
+    # Parse the header (if any)
+    header = ""
+    content = schedule_text
+    
+    # Check if there's a header line before the schedule items
+    lines = schedule_text.strip().split('\n')
+    if lines and not re.search(r'(?:^|\s)(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)', lines[0]):
+        header = lines[0]
+        content = '\n'.join(lines[1:])
+    
+    # Parse and sort the schedule entries
+    sorted_entries = parse_and_sort_schedule_entries(content)
+    
+    # Rebuild the schedule text with sorted entries
+    result = header + "\n" if header else ""
+    for time_str, event in sorted_entries:
+        if time_str:
+            result += f"- {time_str}: {event}\n"
+        else:
+            result += f"- {event}\n"
+            
+    return result.strip()
+
 def get_llm_response(messages, user_context=None):
-    from app.utils.memory_utils import get_memory
+    from app.utils.memory_utils import get_memory, consolidate_memory_entries
     api_key = current_app.config.get('LLM_API_KEY')
     api_url = current_app.config.get('LLM_API_URL')
     model_name = current_app.config.get('LLM_MODEL_NAME', 'gemini-2.0-flash')
     now = datetime.now()
     today_string = now.strftime('%A, %B %d, %Y')
+    
+    # Periodically consolidate memory entries (every 10th request, roughly)
+    import random
+    if random.random() < 0.1:  # 10% chance to run consolidation
+        try:
+            # Get user_id if available
+            user_id = None
+            for msg in reversed(messages):
+                if msg.get('role') == 'user' and 'user_id' in msg:
+                    user_id = msg['user_id']
+                    break
+            if user_context and 'user_id' in user_context:
+                user_id = user_context['user_id']
+                
+            # Run consolidation for this user only
+            if user_id:
+                consolidated, deleted = consolidate_memory_entries(user_id)
+                if consolidated > 0 or deleted > 0:
+                    current_app.logger.info(f"Memory consolidation: {consolidated} groups consolidated, {deleted} entries deleted for user {user_id}")
+        except Exception as e:
+            current_app.logger.error(f"Error during memory consolidation: {str(e)}")
     
     # --- NEW: Fetch all conversations for global context ---
     try:
@@ -68,7 +186,9 @@ def get_llm_response(messages, user_context=None):
             memory_context.append("\nUser Schedules:")
             for key, value in schedules.items():
                 memory_context.append(f"- Schedule for {key}:")
-                memory_context.append(f"  {value}")
+                # Sort schedule entries chronologically
+                sorted_schedule = format_schedule_chronologically(value)
+                memory_context.append(f"  {sorted_schedule}")
         if memory_context:
             memory_message = {"role": "system", "content": "\n".join(memory_context)}
     llm_messages = [system_time_message]
@@ -129,7 +249,9 @@ def get_llm_response(messages, user_context=None):
             
             if schedule_memories:
                 for mem in schedule_memories:
-                    matching_schedules.append(f"Schedule for {mem.schedule_id or 'unknown'} on {mem.day or 'unknown date'}:\n{mem.value}")
+                    # Sort schedule entries chronologically
+                    sorted_schedule = format_schedule_chronologically(mem.value)
+                    matching_schedules.append(f"Schedule for {mem.schedule_id or 'unknown'} on {mem.day or 'unknown date'}:\n{sorted_schedule}")
     
     schedule_convs = []
     if requested_schedule and user_id:
@@ -161,12 +283,13 @@ def get_llm_response(messages, user_context=None):
     identity_message = {"role": "system", "content": (
         "You are Groggo - The Personal Assistant, a friendly dinosaur assistant who helps users manage their schedules, remember facts, and answer questions. "
         "When presenting a schedule, ALWAYS format it as follows (replace with actual details):\n"
-        "Schedule for [Day or Date or Context]:\n"
+        "Schedule for [Day], [Date]:\n"
         "- [Time Slot 1]: [Event or Task 1]\n"
         "- [Time Slot 2]: [Event or Task 2]\n\n"
         "IMPORTANT INSTRUCTION: When a user provides you with a schedule, you MUST repeat it back to them in a well-formatted way. "
-        "Always confirm the schedule by saying something like 'I've saved your schedule for [day]' and then repeat the schedule in the format above. "
-        "This is critical as your response will be used to extract and save the schedule information."
+        "Always confirm the schedule by saying something like 'I've saved your schedule for [Day], [Date]' and then repeat the schedule in the format above. "
+        "This is critical as your response will be used to extract and save the schedule information. "
+        "ALWAYS include both the day of the week AND the date in the format 'Monday, April 30, 2025' in your schedule headers."
     )}
     llm_messages.append(identity_message)
     llm_messages.extend(messages)
